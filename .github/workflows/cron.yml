@@ -1,18 +1,21 @@
-
-name: Trigger Coze Workflow
+name: Send AI News To Feishu
 
 on:
   schedule:
-    - cron: '0 1 * * *'   # 每天 UTC 01:00 触发（北京时间早9点）
+    - cron: '0 1 * * *'   # 北京时间早9点
   workflow_dispatch:
 
 jobs:
-  trigger:
+  send:
     runs-on: ubuntu-latest
     steps:
-      - name: Call Coze Webhook
+      - name: Send Message
         run: |
-          curl -X POST "你的WebhookURL" \
-          -H "Authorization: Bearer 你的Token" \
+          curl -X POST "https://open.feishu.cn/open-apis/bot/v2/hook/77210a95-7ad1-4693-8ad4-22893d3f57f9" \
           -H "Content-Type: application/json" \
-          -d '{"input":"today_ai_news"}'
+          -d '{
+            "msg_type": "text",
+            "content": {
+              "text": "今日AI热点新闻测试推送"
+            }
+          }'
