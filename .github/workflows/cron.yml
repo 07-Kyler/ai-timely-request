@@ -1,4 +1,4 @@
-name: Send AI News To Feishu
+name: AI News Daily Push
 
 on:
   schedule:
@@ -6,16 +6,48 @@ on:
   workflow_dispatch:
 
 jobs:
-  send:
+  run:
     runs-on: ubuntu-latest
     steps:
-      - name: Send Message
+
+      - name: Install jq
+        run: sudo apt-get install jq -y
+
+      - name: Fetch AI News RSS
         run: |
-          curl -X POST "https://open.feishu.cn/open-apis/bot/v2/hook/77210a95-7ad1-4693-8ad4-22893d3f57f9" \
-          -H "Content-Type: application/json" \
-          -d '{
-            "msg_type": "text",
-            "content": {
-              "text": "今日AI热点新闻测试推送"
-            }
-          }'
+          curl -s https://www.theverge.com/rss/ai/artificial-intelligence/index.xml -o news.xml
+
+      - name: Extract Titles
+        run: |
+          grep "<title>" news.xml | head -n 10 | sed 's/<[^>]*>//g' > titles.txt
+
+      - name: Call Dragonfly API
+        run: |
+          CONTENT=$(cat titles.txt | tr '\n' ' ')
+
+          RESPONSE=$(curl https://dragonfly-api.com/v1/chat/completions \
+            -s \
+            -H "Authorization: Bearer ${{ secrets.DRAGONFLY_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"model\": \"deepseek/deepseek-chat\",
+              \"messages\": [
+                {\"role\":\"system\",\"content\":\"你是科技主编，请从以下AI新闻标题中筛选最重要的3条并简要总结\"},
+                {\"role\":\"user\",\"content\":\"$CONTENT\"}
+              ]
+            }")
+
+          echo "$RESPONSE" > result.json
+
+      - name: Extract Text
+        run: |
+          TEXT=$(jq -r '.choices[0].message.content' result.json)
+          echo "$TEXT" > final.txt
+
+      - name: Send To Feishu
+        run: |
+          MESSAGE=$(cat final.txt | sed ':a;N;$!ba;s/\n/\\n/g')
+
+          curl -X POST "Pq44yGSmRL6PyJrNDKV79gMMWeQmoGHO" \
+            -H "Content-Type: application/json" \
+            -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"$MESSAGE\"}}"
